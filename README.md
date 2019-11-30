@@ -1,44 +1,16 @@
-# starmen
+> This is Major Tom to Ground Control  
+I'm stepping through the door  
+And I'm floating  
+in a most peculiar way  
+And the stars look very different today
 
-FIXME: description
+# Major Tom
+He's floating far above the Moon, so you might as well ask him what's going on up there.
 
-## Installation
+Major Tom is a bot for Slack that lets you see satellites orbiting the Earth on a map.
+~~He will also remind you when the ISS is visible from your location 🛰👩‍🚀👨‍🚀~~.
 
-Download from http://example.com/FIXME.
+# Disclaimer
+Icons made by <a href="https://www.flaticon.com/authors/freepik" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a>
 
-## Usage
-
-FIXME: explanation
-
-    $ java -jar starmen-0.1.0-standalone.jar [args]
-
-## Options
-
-FIXME: listing of options this app accepts.
-
-## Examples
-
-...
-
-### Bugs
-
-...
-
-### Any Other Sections
-### That You Think
-### Might be Useful
-
-## License
-
-Copyright © 2019 FIXME
-
-This program and the accompanying materials are made available under the
-terms of the Eclipse Public License 2.0 which is available at
-http://www.eclipse.org/legal/epl-2.0.
-
-This Source Code may also be made available under the following Secondary
-Licenses when the conditions for such availability set forth in the Eclipse
-Public License, v. 2.0 are satisfied: GNU General Public License as published by
-the Free Software Foundation, either version 2 of the License, or (at your
-option) any later version, with the GNU Classpath Exception which is available
-at https://www.gnu.org/software/classpath/license.html.
+Maps from [MapBox](https://www.mapbox.com/)
