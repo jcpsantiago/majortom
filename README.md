@@ -19,4 +19,8 @@ Satellite tracking data comes from [N2YO](https://www.n2yo.com)
 
 Icons made by <a href="https://www.flaticon.com/authors/freepik" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a>
 
-Maps from [MapBox](https://www.mapbox.com/)
+Maps from [MapBox](https://www.mapbox.com/) and [OpenStreetMap](https://www.openstreetmap.org)
+
+# License
+
+Eclipse Public License 2.0
