@@ -5,6 +5,7 @@
    [clojure.string :refer [upper-case]]
    [compojure.core :refer [defroutes GET POST]]
    [compojure.route :as route]
+   [java-time :as jt]
    [org.httpkit.server :as server]
    [org.httpkit.client :as http]
    [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
@@ -20,6 +21,7 @@
 (def port (Integer/parseInt (or (System/getenv "PORT") "3000")))
 (def mapbox-api-key (System/getenv "MAPBOX_ACCESS_TOKEN"))
 (def satellite-image-url (System/getenv "STARMEN_SATELLITE_IMAGE_URL"))
+(def n2yo-api-key (System/getenv "N2YO_API_KEY"))
 (def postgresql-host (let [heroku-url (System/getenv "DATABASE_URL")]
                        (if (nil? heroku-url)
                          {:host "0.0.0.0"
@@ -159,6 +161,36 @@
                                              zoom)
                :alt_text "flight overview"}]}))
 
+(defn unix->datetime
+  [unixtimestamp]
+  (println unixtimestamp)
+  (println "")
+  (jt/format "HH:mm" (-> (* unixtimestamp 1000)
+                         (jt/instant)
+                         (jt/zoned-date-time "CET"))))
+
+(defn pass-schedule-payload
+  [n2yo-response satellite]
+  (let [start-instant (unix->datetime (:startUTC n2yo-response))
+        max-instant (unix->datetime (:maxUTC n2yo-response))
+        end-instant (unix->datetime (:endUTC n2yo-response))
+        start-compass (:startAzCompass n2yo-response)
+        max-compass (:maxAzCompass n2yo-response)
+        end-compass (:endAzCompass n2yo-response)
+        date-response (jt/format "yyyy-MM-dd" (-> (* (:startUTC n2yo-response) 1000)
+                                                  (jt/instant)
+                                                  (jt/zoned-date-time "CET")))]
+    {:status 200
+     :blocks [{:type "section",
+               :text {:type "mrkdwn", :text "Next visual contact is"}}
+              {:type "section",
+               :text {:type "mrkdwn",
+                      :text (str "*" date-response " between " start-instant " and "
+                                 end-instant "*\nFrom " start-compass ", peaking in "
+                                 max-compass " and disappearing in " end-compass)}}
+              {:type "section",
+               :text {:type "mrkdwn",
+                      :text "*<https://www.n2yo.com/passes/?s=25544|Show more times>*"}}]}))
 
 (defn get-satellite!
   "Get the current position of a satellite"
@@ -168,11 +200,32 @@
       get-api-data!
       first))
 
+(defn print-and-pass
+  [x]
+  (println x)
+  x)
+
+(defn get-passes!
+  "Get predictions for visible passes for a satellite"
+  [satellite]
+  (-> (str "http://www.n2yo.com/rest/v1/satellite/visualpasses/25544/52.52/13.38/0/5/350/&apiKey="
+           n2yo-api-key)
+      get-api-data!
+      :passes))
+
 (defn post-satellite!
   "Gets satellite position, create string and post it to Slack"
   [satellite response-url]
   (-> (get-satellite! satellite)
       (create-payload satellite)
+      (post-to-slack! response-url)))
+
+(defn post-passes!
+  "Gets satellite position, create string and post it to Slack"
+  [satellite response-url]
+  (-> (get-passes! satellite)
+      first
+      (pass-schedule-payload satellite)
       (post-to-slack! response-url)))
 
 (defn request-satellite-position
@@ -214,6 +267,14 @@
   {:status 200
    :body (str "Ground control please standby...")})
 
+(defn satellite-passes
+  "Return a satellite's current position"
+  [user-id satellite response-url]
+  (thread (post-passes! satellite response-url))
+  (timbre/info "Replying immediately to slack")
+  {:status 200
+   :body (str "Ground control please standby...")})
+
 (defn insert-slack-token!
   [access-token-response connection]
   (sql/insert! connection :connected_teams {:slack_team_id (:team_id access-token-response)
@@ -241,6 +302,12 @@
            (insert-slack-token! ds)))
     (timbre/error "OAuth state parameter didn't match!")))
 
+(defn nil->string
+  [x]
+  (if (nil? x)
+    ""
+    x))
+
 (defroutes app-routes
   (GET "/" [] (landing/homepage))
   (GET "/slack" req
@@ -253,20 +320,24 @@
     (let [request-id (utils/uuid)
           request (:params req)
           user-id (:user_id request)
-          satellite (->> (:command request)
-                         (re-find #"[a-z]+")
-                         keyword)
+          command (->> (:command request)
+                       nil->string
+                       (re-find #"[a-z]+")
+                       keyword)
           command-text (:text request)
           response-url (:response_url request)]
       (timbre/info (str "Slack user " user-id
-                        " is requesting info about satellite" satellite "..."))
+                        " is requesting " command "..."))
       (timbre/info (str request-id " saving request in database"))
       (sql/insert! ds :requests {:id request-id :user_id user-id
                                  :team_domain (:team_domain request)
                                  :team_id (:team_id request)
                                  :channel_id (:channel_id request)
                                  :channel_name (:channel_name request)})
-      (satellite-position user-id satellite response-url)))
+      (case command-text
+        "" (satellite-position user-id command response-url)
+        "pass" (satellite-passes user-id command response-url))))
+
   (route/resources "/")
   (route/not-found "Error: endpoint not found!"))
 
@@ -276,4 +347,4 @@
   (migrate)
   (server/run-server (wrap-defaults #'app-routes api-defaults) {:port port})
   (timbre/info
-   (str "Major Tom is listening for requests http:/127.0.0.1:" port "/")))
+   (str "Major Tom👨‍🚀 is listening for requests 🚀🛰 on port:" port "/")))
