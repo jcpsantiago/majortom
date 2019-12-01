@@ -163,8 +163,6 @@
 
 (defn unix->datetime
   [unixtimestamp]
-  (println unixtimestamp)
-  (println "")
   (jt/format "HH:mm" (-> (* unixtimestamp 1000)
                          (jt/instant)
                          (jt/zoned-date-time "CET"))))
@@ -288,7 +286,6 @@
 
 (defn slack-access-token!
   [request]
-  (println request)
   (if (= (:state request) slack-oauth-url-state)
     (do
       (timbre/info "Replying to Slack OAuth and saving token to db")
