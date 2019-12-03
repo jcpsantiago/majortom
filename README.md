@@ -7,7 +7,7 @@ in a most peculiar way
 And the stars look very different today
 
 # Major Tom 
-He's floating far above the Moon, so you might as well ask him what's going on up there.
+He's floating far above the Moon, so you might as well ask him how's the view from up there.
 
 Major Tom is a bot for Slack that lets you see satellites orbiting the Earth on a map.
 ~~He will also remind you when the ISS is visible from your location 🛰👩‍🚀👨‍🚀~~.
