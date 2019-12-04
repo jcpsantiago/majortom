@@ -15,6 +15,7 @@
                  [mock-clj "0.2.1"]
                  [proto-repl "0.3.1"]
                  [ring/ring-defaults "0.3.2"]
+                 [ring/ring-codec "1.1.2"]
                  [seancorfield/next.jdbc "1.0.9"]]
   :main ^:skip-aot starmen.core
   :plugins [[lein-cloverage "1.1.1"]

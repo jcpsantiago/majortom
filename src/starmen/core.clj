@@ -9,6 +9,7 @@
    [org.httpkit.server :as server]
    [org.httpkit.client :as http]
    [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
+   [ring.util.codec :refer [url-encode]]
    [starmen.utils :as utils]
    [starmen.landingpage :as landing]
    [taoensso.timbre :as timbre]
@@ -17,6 +18,7 @@
   (:gen-class))
 
 (def maps-api-key (System/getenv "GOOGLE_MAPS_API_KEY"))
+(def news-api-key (System/getenv "GOOGLE_NEWS_API_KEY"))
 (def openweather-api-key (System/getenv "OPENWEATHER_API_KEY"))
 (def port (Integer/parseInt (or (System/getenv "PORT") "3000")))
 (def mapbox-api-key (System/getenv "MAPBOX_ACCESS_TOKEN"))
@@ -85,7 +87,7 @@
    (:body @(http/get url))
    true))
 
-(defn get-weather!
+(defn weather!
   "Get current weather condition for a city"
   [latitude longitude]
   (timbre/info "Checking the weather...")
@@ -94,7 +96,7 @@
            "&appid=" openweather-api-key)
       get-api-data!))
 
-(defn get-weather-description
+(defn weather-description
   "Get description for current weather from openweather API response"
   [weather-response]
   (-> weather-response
@@ -108,19 +110,30 @@
   (str "https://maps.googleapis.com/maps/api/geocode/json?latlng="
        latitude "," longitude "&key=" maps-api-key))
 
+;; FIXME fails when using HTTPS: "Connection reset by peer"
+(defn create-gnews-str
+  "Creates the url needed for fetching news articles from googles news API"
+  [query]
+  (timbre/info "Searching for news about" query)
+  (str "http://newsapi.org/v2/everything?q="
+       (url-encode query) "&pageSize=3&page=1&apiKey=" news-api-key))
+
 (defn create-satellite-str
   "Creates a string with information about the flight"
-  [address altitude speed]
+  [address altitude speed news-title news-url]
   (str "This is Major Tom to Ground Control: we're"
        " currently moving at " (int speed) " km/h"
        (if (nil? address)
          ""
          (str " over " address))
-       " at an altitude of " (int altitude) " kilometers."))
+       " at an altitude of " (int altitude) " kilometers"
+       (if (nil? news-title)
+         (str ".")
+         (str " where <" news-url "|" news-title ">."))))
 
 (defn create-mapbox-str
   "Creates mapbox string for image with map and airplane"
-  [image-url longitude latitude night-mode zoom]
+  [image-url longitude latitude zoom]
   (str "https://api.mapbox.com/styles/v1/mapbox/"
        "satellite-v9"
        "/static/" "url-" image-url
@@ -136,20 +149,30 @@
         longitude (:longitude position)
         altitude (:altitude position)
         speed (:velocity position)
-        weather-response (get-weather! latitude longitude)
-        night-mode (utils/night? weather-response)
+        ;;weather-response (weather! latitude longitude)
+        ;;night-mode (utils/night? weather-response)
         gmaps-response (-> (create-gmaps-str latitude longitude)
                            get-api-data!
-                           :results
-                           first)
-        address (:formatted_address gmaps-response)
+                           :results)
+        address (:formatted_address (first gmaps-response))
+        region-country (utils/region-country gmaps-response)
         zoom (if (or (nil? address) (re-find #"Ocean" address))
                2
-               10)]
-    (timbre/info (str "Creating payload for " satellite))
+               10)
+        news-response (if (nil? address)
+                          nil
+                          (-> (create-gnews-str (or region-country address))
+                              get-api-data!
+                              :articles))
+        news-article (or (second news-response) (first news-response))
+        news-title (:title news-article)
+        news-url (:url news-article)]
+    (timbre/info (str "Creating payload for " satellite " flying above "
+                      latitude ", " longitude " " region-country " " address))
     {:blocks [{:type "section"
-               :text {:type "plain_text"
-                      :text (create-satellite-str address altitude speed)}}
+               :text {:type "mrkdwn"
+                      :text (create-satellite-str address altitude
+                                                  speed news-title news-url)}}
               {:type "image"
                :title {:type "plain_text"
                        :text "Satellite location"
@@ -157,27 +180,22 @@
                :image_url (create-mapbox-str satellite-image-url
                                              longitude
                                              latitude
-                                             night-mode
                                              zoom)
-               :alt_text "flight overview"}]}))
-
-(defn unix->datetime
-  [unixtimestamp]
-  (jt/format "HH:mm" (-> (* unixtimestamp 1000)
-                         (jt/instant)
-                         (jt/zoned-date-time "CET"))))
+               :alt_text "Satellite location"}]}))
 
 (defn pass-schedule-payload
   [n2yo-response satellite]
-  (let [start-instant (unix->datetime (:startUTC n2yo-response))
-        max-instant (unix->datetime (:maxUTC n2yo-response))
-        end-instant (unix->datetime (:endUTC n2yo-response))
+  (let [start-instant (utils/unix->datetime (:startUTC n2yo-response))
+        max-instant (utils/unix->datetime (:maxUTC n2yo-response))
+        end-instant (utils/unix->datetime (:endUTC n2yo-response))
         start-compass (:startAzCompass n2yo-response)
         max-compass (:maxAzCompass n2yo-response)
         end-compass (:endAzCompass n2yo-response)
         date-response (jt/format "yyyy-MM-dd" (-> (* (:startUTC n2yo-response) 1000)
                                                   (jt/instant)
-                                                  (jt/zoned-date-time "CET")))]
+                                                  (jt/zoned-date-time "CET")))
+        weather-response (weather! 52.52 13.38)
+        weather-description (weather-description weather-response)]
     {:status 200
      :blocks [{:type "section",
                :text {:type "mrkdwn", :text "Next visual contact is"}}
@@ -197,11 +215,6 @@
            (quot (System/currentTimeMillis) 1000))
       get-api-data!
       first))
-
-(defn print-and-pass
-  [x]
-  (println x)
-  x)
 
 (defn get-passes!
   "Get predictions for visible passes for a satellite"
@@ -226,6 +239,7 @@
       (pass-schedule-payload satellite)
       (post-to-slack! response-url)))
 
+;; FIXME should use the new stuff for major tom
 (defn request-satellite-position
   [satellite user-id]
   {:status 200
@@ -299,12 +313,6 @@
            (insert-slack-token! ds)))
     (timbre/error "OAuth state parameter didn't match!")))
 
-(defn nil->string
-  [x]
-  (if (nil? x)
-    ""
-    x))
-
 (defroutes app-routes
   (GET "/" [] (landing/homepage))
   (GET "/slack" req
@@ -318,7 +326,7 @@
           request (:params req)
           user-id (:user_id request)
           command (->> (:command request)
-                       nil->string
+                       (utils/nil->string)
                        (re-find #"[a-z]+")
                        keyword)
           command-text (:text request)
