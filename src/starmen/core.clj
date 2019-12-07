@@ -12,6 +12,7 @@
    [ring.util.codec :refer [url-encode]]
    [starmen.utils :as utils]
    [starmen.landingpage :as landing]
+   [starmen.mastodon :as mastodon]
    [taoensso.timbre :as timbre]
    [next.jdbc :as jdbc]
    [next.jdbc.sql :as sql])
@@ -33,6 +34,7 @@
 (def slack-client-id (System/getenv "STARMEN_CLIENT_ID"))
 (def slack-client-secret (System/getenv "STARMEN_CLIENT_SECRET"))
 (def slack-oauth-url-state (System/getenv "STARMEN_SLACK_OAUTH_STATE"))
+(def mysterioustoken (System/getenv "STARMEN_CRONJOB_TOKEN"))
 
 (def db postgresql-host)
 (def ds (jdbc/get-datasource db))
@@ -313,6 +315,50 @@
            (insert-slack-token! ds)))
     (timbre/error "OAuth state parameter didn't match!")))
 
+(defn post-to-mastodon!
+  []
+  (let [position (get-satellite! "iss")
+        latitude (:latitude position)
+        longitude (:longitude position)
+        altitude (:altitude position)
+        speed (:velocity position)
+        gmaps-response (-> (create-gmaps-str latitude longitude)
+                           get-api-data!
+                           :results)
+        address (:formatted_address (first gmaps-response))
+        region-country (utils/region-country gmaps-response)
+        zoom (if (or (nil? address) (re-find #"Ocean" address))
+               2
+               10)
+        news-response (if (nil? address)
+                        nil
+                        (-> (create-gnews-str (or region-country address))
+                            get-api-data!
+                            :articles))
+        news-article (or (second news-response) (first news-response))
+        news-title (:title news-article)
+        news-url (:url news-article)
+        mapbox-str (create-mapbox-str satellite-image-url
+                                      longitude
+                                      latitude
+                                      zoom)
+        img (:body @(http/get mapbox-str))
+        satellite-str (str "This is Major Tom to Ground Control: we're"
+                           " currently moving at " (int speed) " km/h"
+                           (if (nil? address)
+                             ""
+                             (str " over " address))
+                           " at an altitude of " (int altitude) " kilometers"
+                           (if (nil? news-title)
+                             (str ".")
+                             (str " where " news-title ".\n" news-url)))]
+
+    (timbre/info (str "Creating mastodon payload for " "ISS flying above "
+                      latitude ", " longitude " " region-country " " address))
+    (mastodon/toot-media-status! img satellite-str)
+    {:status 200
+     :body "OK"}))
+
 (defroutes app-routes
   (GET "/" [] (landing/homepage))
   (GET "/slack" req
@@ -343,6 +389,14 @@
         "" (satellite-position user-id command response-url)
         "pass" (satellite-passes user-id command response-url))))
 
+  (GET "/mastodon" {:keys [headers] :as request}
+       (let [headers (:headers request)
+             crontoken (headers "crontoken")]
+         (if (= crontoken mysterioustoken)
+           (post-to-mastodon!)
+           {:status 403
+            :body "NOT AUTHORIZED"})))
+  
   (route/resources "/")
   (route/not-found "Error: endpoint not found!"))
 
