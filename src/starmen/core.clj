@@ -335,7 +335,7 @@
                         (-> (create-gnews-str (or region-country address))
                             get-api-data!
                             :articles))
-        news-article (nth news-response (int (rand (count news-response))))
+        news-article (rand-nth news-response)
         news-title (:title news-article)
         news-url (:url news-article)
         mapbox-str (create-mapbox-str satellite-image-url
