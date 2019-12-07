@@ -118,7 +118,7 @@
   [query]
   (timbre/info "Searching for news about" query)
   (str "http://newsapi.org/v2/everything?q="
-       (url-encode query) "&pageSize=3&page=1&apiKey=" news-api-key))
+       (url-encode query) "&pageSize=7&page=1&apiKey=" news-api-key))
 
 (defn create-satellite-str
   "Creates a string with information about the flight"
@@ -335,7 +335,7 @@
                         (-> (create-gnews-str (or region-country address))
                             get-api-data!
                             :articles))
-        news-article (or (second news-response) (first news-response))
+        news-article (nth news-response (int (rand (count news-response))))
         news-title (:title news-article)
         news-url (:url news-article)
         mapbox-str (create-mapbox-str satellite-image-url
@@ -345,10 +345,9 @@
         img (:body @(http/get mapbox-str))
         satellite-str (str "This is Major Tom to Ground Control: we're"
                            " currently moving at " (int speed) " km/h"
-                           (if (nil? address)
+                           (if (nil? region-country)
                              ""
-                             (str " over " address))
-                           " at an altitude of " (int altitude) " kilometers"
+                             (str " over " region-country))
                            (if (nil? news-title)
                              (str ".")
                              (str " where " news-title ".\n" news-url)))]
@@ -396,7 +395,7 @@
            (post-to-mastodon!)
            {:status 403
             :body "NOT AUTHORIZED"})))
-  
+
   (route/resources "/")
   (route/not-found "Error: endpoint not found!"))
 
