@@ -345,9 +345,9 @@
         img (:body @(http/get mapbox-str))
         satellite-str (str "This is Major Tom to Ground Control: we're"
                            " currently moving at " (int speed) " km/h"
-                           (if (nil? region-country)
+                           (if (nil? address)
                              ""
-                             (str " over " region-country))
+                             (str " over " address))
                            (if (nil? news-title)
                              (str ".")
                              (str " where " news-title ".\n" news-url)))]
