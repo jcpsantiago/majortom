@@ -7,6 +7,7 @@ in a most peculiar way
 And the stars look very different today
 
 # Major Tom 
+[![CircleCI](https://circleci.com/gh/jcpsantiago/majortom/tree/master.svg?style=svg)](https://circleci.com/gh/jcpsantiago/majortom/tree/master)
 [![Dependencies Status](https://versions.deps.co/jcpsantiago/majortom/status.svg)](https://versions.deps.co/jcpsantiago/majortom)
 
 He's floating far above the Moon, so you might as well ask him how's the view from up there.
