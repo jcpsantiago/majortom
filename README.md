@@ -7,6 +7,8 @@ in a most peculiar way
 And the stars look very different today
 
 # Major Tom 
+[![Dependencies Status](https://versions.deps.co/jcpsantiago/majortom/status.svg)](https://versions.deps.co/jcpsantiago/majortom)
+
 He's floating far above the Moon, so you might as well ask him how's the view from up there.
 
 Major Tom is a bot that lets you see satellites orbiting the Earth on a map.
